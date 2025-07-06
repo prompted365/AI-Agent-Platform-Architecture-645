@@ -26,16 +26,27 @@ const __dirname = dirname(__filename);
 
 const app = express();
 const server = createServer(app);
+
+// CORS configuration for cloud deployment
+const corsOptions = {
+  origin: [
+    'https://tubular-biscochitos-608b9a.netlify.app',
+    'http://localhost:5173',
+    'http://localhost:3000'
+  ],
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  credentials: true
+};
+
 const io = new Server(server, {
-  cors: {
-    origin: process.env.CLIENT_URL || "http://localhost:5173",
-    methods: ["GET", "POST"]
-  }
+  cors: corsOptions
 });
 
 // Middleware
-app.use(helmet());
-app.use(cors());
+app.use(helmet({
+  crossOriginEmbedderPolicy: false // Allow embedding for Netlify
+}));
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -64,22 +75,35 @@ const agentService = new AgentService(swarmService);
 // Initialize services in sequence
 const initializeServices = async () => {
   try {
+    console.log('🚀 Initializing services...');
+    
+    // Check API key
+    if (!process.env.REQUESTY_API_KEY) {
+      console.error('❌ REQUESTY_API_KEY not found in environment variables');
+      console.error('💡 Please add your Requesty API key to Railway environment variables');
+    } else {
+      const keyPrefix = process.env.REQUESTY_API_KEY.substring(0, 10);
+      console.log(`✅ REQUESTY_API_KEY found (${keyPrefix}...)`);
+    }
+
     // Initialize event bus first
     await eventBus.initialize(process.env.REDIS_URL);
-    
+
     // Initialize swarm service with event bus support
     await swarmService.initialize(process.env.REDIS_URL);
-    
+
     // Initialize other services
     await agentService.initialize();
+    
     if (process.env.ASTRA_DB_ID) {
       await astraService.initialize();
     }
-    await mcpService.initialize();
     
-    console.log('All services initialized successfully');
+    await mcpService.initialize();
+
+    console.log('✅ All services initialized successfully');
   } catch (error) {
-    console.error('Service initialization error:', error);
+    console.error('❌ Service initialization error:', error);
   }
 };
 
@@ -93,13 +117,90 @@ app.get('/health', (req, res) => {
     services: {
       swarm: !!swarmService,
       eventBus: eventBus.isConnected(),
-      astra: !!process.env.ASTRA_DB_ID
-    }
+      astra: !!process.env.ASTRA_DB_ID,
+      llm: !!process.env.REQUESTY_API_KEY
+    },
+    cors: corsOptions.origin
   });
 });
 
-// API Routes
+// Enhanced LLM Test endpoint with Sonnet-4 support
+app.post('/api/llm/test', async (req, res) => {
+  try {
+    const { 
+      message = "Hello! Can you respond with 'OK' to confirm the connection works?",
+      model = "anthropic/claude-sonnet-4-0"
+    } = req.body;
+    
+    console.log('🧪 Testing LLM with message:', message);
+    console.log('🔑 API Key status:', process.env.REQUESTY_API_KEY ? 'Present' : 'Missing');
+    console.log('🤖 Model:', model);
+    
+    const response = await llmService.generateResponse(message, {
+      model,
+      context: { test: true },
+      reasoning_effort: 'low'
+    });
+    
+    console.log('✅ LLM test successful');
+    
+    res.json({
+      success: true,
+      response,
+      timestamp: new Date().toISOString(),
+      model
+    });
+  } catch (error) {
+    console.error('❌ LLM test error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
 
+// Model testing endpoint with reasoning models
+app.post('/api/llm/test-models', async (req, res) => {
+  try {
+    console.log('🧪 Testing multiple models...');
+    const results = await llmService.testModels();
+    
+    res.json({
+      success: true,
+      results,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('❌ Model test error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// LLM Health check endpoint
+app.get('/api/llm/health', async (req, res) => {
+  try {
+    const healthCheck = await llmService.healthCheck();
+    
+    if (healthCheck.status === 'healthy') {
+      res.json(healthCheck);
+    } else {
+      res.status(503).json(healthCheck);
+    }
+  } catch (error) {
+    res.status(503).json({
+      status: 'unhealthy',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// API Routes
 // Swarm Management API
 app.get('/api/swarms', async (req, res) => {
   try {
@@ -223,23 +324,54 @@ app.post('/api/github/sync', async (req, res) => {
   }
 });
 
+// Artifact generation API with reasoning
+app.post('/api/artifacts/generate', async (req, res) => {
+  try {
+    const { description, type = 'code', language = 'javascript' } = req.body;
+    console.log('🎨 Generating artifact:', { description, type, language });
+    
+    const content = await llmService.generateArtifact(description, type, language);
+    
+    res.json({
+      success: true,
+      content,
+      type,
+      language,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('❌ Error generating artifact:', error);
+    res.status(500).json({ 
+      success: false,
+      error: error.message 
+    });
+  }
+});
+
 // Socket.IO connection handling
 io.on('connection', (socket) => {
-  console.log('Client connected:', socket.id);
+  console.log('🔌 Client connected:', socket.id);
 
   // Handle client message
   socket.on('message', async (data) => {
     try {
       const { content, agent, context } = data;
+      console.log('💬 Received message:', { content: content.substring(0, 100), agent: agent?.name });
 
       // Process message through MCP
       const mcpResponse = await mcpService.processMessage(content, context);
 
-      // Generate AI response
+      // Generate AI response with reasoning
       const aiResponse = await llmService.generateResponse(content, {
         agent,
-        context: { ...context, mcp: mcpResponse }
+        context: {
+          ...context,
+          mcp: mcpResponse
+        },
+        reasoning_effort: 'medium'
       });
+
+      console.log('🤖 Generated AI response with reasoning:', aiResponse.substring(0, 100));
 
       // Store in vector database if Astra is connected
       if (process.env.ASTRA_DB_ID) {
@@ -255,12 +387,15 @@ io.on('connection', (socket) => {
 
       socket.emit('message', {
         content: aiResponse,
-        agent: agent?.name || 'Assistant',
+        agent: agent?.name || 'Claude Sonnet-4',
         timestamp: new Date()
       });
     } catch (error) {
-      console.error('Error processing message:', error);
-      socket.emit('error', { message: 'Failed to process message' });
+      console.error('❌ Error processing message:', error);
+      socket.emit('error', { 
+        message: 'Failed to process message',
+        details: error.message 
+      });
     }
   });
 
@@ -271,30 +406,44 @@ io.on('connection', (socket) => {
       const result = await sandboxService.executeCode(code, language, environment);
       socket.emit('code-result', result);
     } catch (error) {
-      console.error('Error executing code:', error);
+      console.error('❌ Error executing code:', error);
       socket.emit('code-error', { message: 'Failed to execute code' });
     }
   });
 
-  // Handle agent task execution
+  // Handle agent task execution with reasoning
   socket.on('agent-task', async (data) => {
     try {
       const { agentId, task, context } = data;
+      
+      // Get AI assistance for the task with reasoning
+      const agent = await agentService.getAgent(agentId);
+      if (agent) {
+        const aiGuidance = await llmService.processSwarmTask(task, {
+          role: agent.role,
+          capabilities: agent.capabilities,
+          swarmId: agent.swarmId
+        });
+        
+        // Include AI guidance in task execution
+        task.aiGuidance = aiGuidance;
+      }
+      
       const result = await agentService.executeTask(agentId, task, context);
       socket.emit('agent-result', result);
     } catch (error) {
-      console.error('Error executing agent task:', error);
+      console.error('❌ Error executing agent task:', error);
       socket.emit('agent-error', { message: 'Failed to execute agent task' });
     }
   });
 
-  // Handle swarm operations
+  // Handle swarm operations with reasoning
   socket.on('swarm-create', async (data) => {
     try {
       const swarm = await swarmService.createSwarm(data);
       socket.emit('swarm-created', swarm);
     } catch (error) {
-      console.error('Error creating swarm:', error);
+      console.error('❌ Error creating swarm:', error);
       socket.emit('swarm-error', { message: 'Failed to create swarm' });
     }
   });
@@ -302,13 +451,23 @@ io.on('connection', (socket) => {
   socket.on('swarm-task', async (data) => {
     try {
       const { swarmId, task } = data;
-      const result = await swarmService.submitTask({
-        ...task,
-        swarmId
-      });
+      
+      // Get AI assistance for task planning with reasoning
+      const swarm = swarmService.swarms.get(swarmId);
+      if (swarm) {
+        const aiAnalysis = await llmService.processSwarmTask(task, {
+          role: 'coordinator',
+          capabilities: ['task_distribution', 'coordination'],
+          swarmId: swarmId
+        });
+        
+        task.aiAnalysis = aiAnalysis;
+      }
+      
+      const result = await swarmService.submitTask({ ...task, swarmId });
       socket.emit('swarm-task-submitted', result);
     } catch (error) {
-      console.error('Error submitting swarm task:', error);
+      console.error('❌ Error submitting swarm task:', error);
       socket.emit('swarm-error', { message: 'Failed to submit swarm task' });
     }
   });
@@ -317,7 +476,6 @@ io.on('connection', (socket) => {
   socket.on('swarm-subscribe', async (data) => {
     try {
       const { swarmId } = data;
-      
       // Create room name for this swarm
       const roomName = `swarm:${swarmId}`;
       
@@ -337,14 +495,14 @@ io.on('connection', (socket) => {
       
       socket.emit('swarm-subscribed', { swarmId });
     } catch (error) {
-      console.error('Error subscribing to swarm:', error);
+      console.error('❌ Error subscribing to swarm:', error);
       socket.emit('swarm-error', { message: 'Failed to subscribe to swarm' });
     }
   });
 
   // Handle disconnect
   socket.on('disconnect', () => {
-    console.log('Client disconnected:', socket.id);
+    console.log('🔌 Client disconnected:', socket.id);
     
     // Clean up any swarm subscriptions
     if (socket.data.swarmUnsubscribe) {
@@ -368,5 +526,10 @@ if (process.env.NODE_ENV === 'production') {
 
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
-  console.log(`Swarm Agents server running on port ${PORT}`);
+  console.log(`🚀 Swarm Agents server running on port ${PORT}`);
+  console.log(`🔗 Health check: http://localhost:${PORT}/health`);
+  console.log(`🧪 LLM test: http://localhost:${PORT}/api/llm/test`);
+  console.log(`🏥 LLM health: http://localhost:${PORT}/api/llm/health`);
+  console.log(`🧪 Model test: http://localhost:${PORT}/api/llm/test-models`);
+  console.log(`🌐 CORS origins:`, corsOptions.origin);
 });

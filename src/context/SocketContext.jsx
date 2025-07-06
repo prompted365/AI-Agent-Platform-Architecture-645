@@ -8,17 +8,33 @@ export function SocketProvider({ children }) {
   const [connected, setConnected] = useState(false);
 
   useEffect(() => {
-    const serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:3001';
-    const newSocket = io(serverUrl);
+    // Railway server URL
+    const serverUrl = 'https://express-production-0250.up.railway.app';
+    
+    console.log('🔗 Connecting to Railway server:', serverUrl);
+
+    const newSocket = io(serverUrl, {
+      transports: ['websocket', 'polling'], // Try WebSocket first, fallback to polling
+      path: '/socket.io',
+      timeout: 20000,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+      forceNew: true
+    });
 
     newSocket.on('connect', () => {
       setConnected(true);
-      console.log('Connected to server');
+      console.log('✅ Connected to Railway server:', serverUrl);
     });
 
     newSocket.on('disconnect', () => {
       setConnected(false);
-      console.log('Disconnected from server');
+      console.log('❌ Disconnected from Railway server');
+    });
+
+    newSocket.on('connect_error', (error) => {
+      console.error('🚨 Connection error:', error);
+      setConnected(false);
     });
 
     setSocket(newSocket);

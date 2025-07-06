@@ -2,192 +2,232 @@
 
 A comprehensive platform for creating, managing, and coordinating swarms of AI agents that work together to accomplish complex tasks through real-time communication and coordination.
 
-## Features
-
-### 🤖 Multi-Agent Swarm Architecture
-- **Swarm Creation**: Create swarms with specialized agent roles
-- **Agent Coordination**: Agents communicate and coordinate via event bus
-- **Task Distribution**: Intelligent task assignment based on agent capabilities
-- **Shared Memory**: Synchronized shared state across agents
-- **Real-Time Events**: Event-driven architecture for responsive coordination
-
-### 🔄 Event Bus System
-- **Distributed Events**: Real-time event propagation across agents
-- **Redis Integration**: Optional Redis-backed event bus for distributed deployment
-- **Event Filtering**: Subscribe to specific event types
-- **Persistent Events**: Event history for analysis and debugging
-- **Broadcast Capabilities**: Send messages to entire swarms
-
-### 👥 Agent Types and Roles
-- **Coordinator Agents**: Manage task distribution and coordination
-- **Worker Agents**: Execute specialized tasks
-- **Research Agents**: Gather and analyze information
-- **Coding Agents**: Generate and review code
-- **Testing Agents**: Validate and test solutions
-
-### 🧠 Agent Capabilities
-- **Code Generation**: AI-powered code generation across multiple languages
-- **Code Review**: Automated code analysis and suggestions
-- **Research**: Information gathering and analysis
-- **Task Decomposition**: Breaking down complex tasks into subtasks
-- **Memory Management**: Storing and retrieving relevant context
-
-### 🌐 Visualization and Monitoring
-- **Swarm Dashboard**: Real-time view of swarm activity
-- **Agent Status**: Monitor individual agent status and performance
-- **Task Tracking**: Track task progress and results
-- **Event Stream**: Live event stream visualization
-- **Metrics**: Performance metrics and analytics
-
-## Quick Start
+## 🚀 Quick Start & API Setup
 
 ### Prerequisites
 - Node.js 18+
 - npm or yarn
+- Requesty API Key (Required)
 - Redis (optional, for distributed event bus)
 
-### Installation
+### 1. Get Your Requesty API Key
+1. Sign up at [Requesty.ai](https://requesty.ai)
+2. Get your API key from the dashboard
+3. Add it to your environment variables
 
-1. **Clone the repository**
+### 2. Installation
 ```bash
 git clone <repository-url>
 cd swarm-agents
-```
-
-2. **Install dependencies**
-```bash
 npm install
 ```
 
-3. **Set up environment variables**
+### 3. Environment Setup
 ```bash
 cp .env.example .env
-# Edit .env with your API keys and configuration
+# Edit .env and add your REQUESTY_API_KEY
 ```
 
-4. **Start development server**
+### 4. Start Development
 ```bash
 npm run dev
 ```
 
-The application will be available at `http://localhost:5173` with the backend at `http://localhost:3001`.
+### 5. Test API Connection
+- Go to Chat Interface
+- Click "Test API" button
+- Verify connection works
 
-## Creating Your First Swarm
+## 🔧 API Configuration
 
-1. Navigate to the Swarms dashboard
-2. Click "New Swarm"
-3. Configure your swarm:
-   - Name and purpose
-   - Number of agents
-   - Agent roles (coordinator, coder, researcher, etc.)
-4. Create the swarm
-5. Submit tasks for the swarm to complete
-6. Monitor progress in real-time
+### Requesty API Integration
+The platform uses Requesty.ai for LLM access with 150+ models:
 
-## Architecture
+**Endpoint:** `https://router.requesty.ai/v1/chat/completions`
 
-### Event-Driven Communication
-
-Swarm Agents uses an event-driven architecture to enable real-time communication between agents:
-
+**Headers:**
 ```
-┌────────────┐     ┌─────────────┐     ┌────────────┐
-│ Agent A    │◄───►│ Event Bus   │◄───►│ Agent B    │
-└────────────┘     └─────────────┘     └────────────┘
-       ▲                  ▲                  ▲
-       │                  │                  │
-       ▼                  ▼                  ▼
-┌────────────┐     ┌─────────────┐     ┌────────────┐
-│ Task Queue │     │ Shared      │     │ External   │
-│            │     │ Memory      │     │ Services   │
-└────────────┘     └─────────────┘     └────────────┘
+Authorization: Bearer YOUR_API_KEY
+Content-Type: application/json
 ```
 
-### Key Components
-
-1. **SwarmService**: Manages swarm creation, task assignment, and coordination
-2. **SwarmEventBus**: Handles real-time event distribution
-3. **AgentService**: Creates and manages individual agents
-4. **RedisIntegration**: Optional distributed event bus with Redis
-
-## Development
-
-### Project Structure
-
-```
-├── server/              # Backend server
-│   ├── index.js         # Server entry point
-│   └── services/        # Backend services
-│       ├── AgentService.js
-│       ├── SwarmService.js
-│       └── SwarmEventBus.js
-├── src/                 # Frontend React application
-│   ├── components/      # React components
-│   │   ├── SwarmBoard.jsx
-│   │   └── ...
-│   ├── context/         # React context providers
-│   └── ...
-└── ...
+**Request Format:**
+```json
+{
+  "model": "openai/gpt-4o-mini",
+  "messages": [
+    {
+      "role": "system",
+      "content": "System prompt"
+    },
+    {
+      "role": "user", 
+      "content": "User message"
+    }
+  ],
+  "temperature": 0.7,
+  "max_tokens": 4000
+}
 ```
 
-### Key Technologies
+## 🤖 AI-Powered Features
 
-- **Backend**: Node.js, Express, Socket.IO, Redis
-- **Frontend**: React, Framer Motion, Tailwind CSS
-- **Communication**: WebSockets, Event Bus pattern
-- **State Management**: React Context API
+### 1. **Conversation AI**
+- Real-time chat with AI assistants
+- Context-aware responses
+- Message history and threading
+- Multi-turn conversations
 
-## Advanced Usage
+### 2. **Code Assistant**
+- Code generation and completion
+- Code review and analysis
+- Debugging assistance
+- Best practices suggestions
 
-### Custom Agent Types
+### 3. **Agent Swarms**
+- Coordinate multiple AI agents
+- Task distribution and execution
+- Inter-agent communication
+- Swarm intelligence
 
-Create specialized agents by defining custom capabilities:
+### 4. **Artifact Generation**
+- Generate code components
+- Create web applications
+- Build documents and content
+- Version control and collaboration
 
-```javascript
-const customAgent = await swarmService.createAgent({
-  name: "Specialized Agent",
-  swarmId: "your-swarm-id",
-  capabilities: ["custom_capability_1", "custom_capability_2"],
-  role: "specialized",
-  type: "custom"
-});
+## 🔍 Troubleshooting API Issues
+
+### Common Issues:
+
+1. **"Invalid API key" Error**
+   - Verify your Requesty API key in `.env`
+   - Check if key has proper permissions
+   - Ensure no extra spaces in the key
+
+2. **"Connection timeout" Error**
+   - Check network connectivity
+   - Verify API endpoint is accessible
+   - Try different model (e.g., `openai/gpt-3.5-turbo`)
+
+3. **"Rate limit exceeded" Error**
+   - Wait before retrying
+   - Check your Requesty plan limits
+   - Implement proper rate limiting
+
+### Debug Steps:
+
+1. **Test API Connection**
+   ```bash
+   curl -X POST https://router.requesty.ai/v1/chat/completions \
+     -H "Authorization: Bearer YOUR_KEY" \
+     -H "Content-Type: application/json" \
+     -d '{"model":"openai/gpt-4o-mini","messages":[{"role":"user","content":"Hello"}]}'
+   ```
+
+2. **Check Server Logs**
+   ```bash
+   npm run dev:server
+   # Look for LLM service logs
+   ```
+
+3. **Use Health Check**
+   - Visit: `http://localhost:3001/health`
+   - Check service status
+
+4. **Test Endpoint**
+   - Visit: `http://localhost:3001/api/llm/test`
+   - Direct API test
+
+## 📊 Available Models
+
+Requesty provides access to 150+ models including:
+
+- **OpenAI**: `openai/gpt-4o`, `openai/gpt-4o-mini`, `openai/gpt-3.5-turbo`
+- **Anthropic**: `anthropic/claude-3-opus`, `anthropic/claude-3-sonnet`
+- **Google**: `google/gemini-pro`, `google/palm-2`
+- **Meta**: `meta/llama-2-70b`, `meta/code-llama`
+- **Mistral**: `mistral/mistral-7b`, `mistral/codestral`
+
+## 🛠 Development Features
+
+### Real-time Features
+- WebSocket connections for live updates
+- Real-time agent coordination
+- Live conversation updates
+- Event-driven architecture
+
+### Database Integration
+- Supabase for data persistence
+- Row-level security (RLS)
+- Real-time subscriptions
+- Organizational multi-tenancy
+
+### Code Execution
+- Sandboxed code execution
+- Multiple language support
+- Live preview for web apps
+- Security isolation
+
+## 🔐 Security Features
+
+- JWT-based authentication
+- Row-level security policies
+- Rate limiting and throttling
+- Input sanitization
+- CORS protection
+- Helmet security headers
+
+## 🚀 Deployment
+
+### Railway Deployment
+```bash
+npm run deploy
 ```
 
-### Complex Task Workflows
-
-Create dependent tasks for complex workflows:
-
-```javascript
-const task1 = await swarmService.submitTask({
-  swarmId: "your-swarm-id",
-  type: "research",
-  description: "Research topic X"
-});
-
-const task2 = await swarmService.submitTask({
-  swarmId: "your-swarm-id",
-  type: "analysis",
-  description: "Analyze research findings",
-  dependencies: [task1.id]  // Will only start when task1 is complete
-});
+### Environment Variables for Production
+```
+NODE_ENV=production
+REQUESTY_API_KEY=your_production_key
+DATABASE_URL=your_supabase_url
+REDIS_URL=your_redis_url
 ```
 
-## Contributing
+## 📝 API Endpoints
+
+### Chat & AI
+- `POST /api/llm/test` - Test LLM connection
+- `POST /api/artifacts/generate` - Generate artifacts
+
+### Swarms
+- `GET /api/swarms` - List swarms
+- `POST /api/swarms` - Create swarm
+- `POST /api/swarms/:id/tasks` - Submit task
+
+### Agents
+- `GET /api/agents` - List agents
+- `POST /api/agents` - Create agent
+
+### Code Execution
+- `POST /api/sandbox/execute` - Execute code
+
+## 🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+3. Add your Requesty API key to test
+4. Make your changes
+5. Test the LLM integration
+6. Submit a pull request
 
-## License
+## 📞 Support
 
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Support
-
-For support, please open an issue on GitHub or contact the development team.
+For API issues:
+1. Check your Requesty API key
+2. Review the server logs
+3. Test the health endpoint
+4. Contact support if needed
 
 ---
 
-Built with ❤️ using Node.js, React, and modern AI technologies
+**Note**: Make sure to keep your Requesty API key secure and never commit it to version control!
