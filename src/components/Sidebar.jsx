@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 
 const {
   FiMessageSquare,
@@ -15,20 +16,32 @@ const {
   FiPlus,
   FiGithub,
   FiDatabase,
-  FiPlay
+  FiPlay,
+  FiLogOut,
+  FiMessageCircle
 } = FiIcons;
 
 export default function Sidebar({ currentView, setCurrentView, setSidebarOpen }) {
   const { projects, currentProject, setCurrentProject } = useApp();
+  const { user, signOut } = useAuth();
 
   const menuItems = [
-    { id: 'chat', icon: FiMessageSquare, label: 'AI Assistant', shortcut: '⌘1' },
-    { id: 'code', icon: FiCode, label: 'Code Editor', shortcut: '⌘2' },
-    { id: 'projects', icon: FiFolderOpen, label: 'Projects', shortcut: '⌘3' },
-    { id: 'agents', icon: FiCpu, label: 'Agents', shortcut: '⌘4' },
-    { id: 'swarm', icon: FiUsers, label: 'Swarms', shortcut: '⌘5' },
+    { id: 'conversations', icon: FiMessageCircle, label: 'Conversations', shortcut: '⌘1' },
+    { id: 'chat', icon: FiMessageSquare, label: 'AI Assistant', shortcut: '⌘2' },
+    { id: 'code', icon: FiCode, label: 'Code Editor', shortcut: '⌘3' },
+    { id: 'projects', icon: FiFolderOpen, label: 'Projects', shortcut: '⌘4' },
+    { id: 'agents', icon: FiCpu, label: 'Agents', shortcut: '⌘5' },
+    { id: 'swarm', icon: FiUsers, label: 'Swarms', shortcut: '⌘6' },
     { id: 'settings', icon: FiSettings, label: 'Settings', shortcut: '⌘,' }
   ];
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
 
   return (
     <div className="h-full flex flex-col bg-dark-800 border-r border-dark-700">
@@ -67,6 +80,26 @@ export default function Sidebar({ currentView, setCurrentView, setSidebarOpen })
       </nav>
 
       <div className="p-4 border-t border-dark-700">
+        {/* User Info */}
+        <div className="mb-4">
+          <div className="flex items-center space-x-3 p-3 bg-dark-700 rounded-lg">
+            <div className="w-8 h-8 bg-primary-600 rounded-full flex items-center justify-center">
+              <span className="text-white text-sm font-medium">
+                {user?.email?.charAt(0).toUpperCase()}
+              </span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-white truncate">
+                {user?.user_metadata?.full_name || 'User'}
+              </p>
+              <p className="text-xs text-gray-400 truncate">
+                {user?.email}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Recent Projects */}
         <div className="mb-4">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-medium text-gray-400">Recent Projects</h3>
@@ -92,11 +125,22 @@ export default function Sidebar({ currentView, setCurrentView, setSidebarOpen })
           </div>
         </div>
 
-        <div className="flex items-center space-x-2 text-xs text-gray-500">
-          <SafeIcon icon={FiGithub} className="w-4 h-4" />
-          <SafeIcon icon={FiDatabase} className="w-4 h-4" />
-          <SafeIcon icon={FiPlay} className="w-4 h-4" />
-          <span>Connected</span>
+        {/* Footer */}
+        <div className="space-y-2">
+          <div className="flex items-center space-x-2 text-xs text-gray-500">
+            <SafeIcon icon={FiGithub} className="w-4 h-4" />
+            <SafeIcon icon={FiDatabase} className="w-4 h-4" />
+            <SafeIcon icon={FiPlay} className="w-4 h-4" />
+            <span>Connected</span>
+          </div>
+          
+          <button
+            onClick={handleSignOut}
+            className="w-full flex items-center space-x-2 p-2 rounded text-sm text-gray-400 hover:text-white hover:bg-dark-700 transition-colors"
+          >
+            <SafeIcon icon={FiLogOut} className="w-4 h-4" />
+            <span>Sign Out</span>
+          </button>
         </div>
       </div>
     </div>

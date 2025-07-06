@@ -16,6 +16,7 @@
     "deploy": "railway login && railway up"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
     "axios": "^1.6.2",
     "cors": "^2.8.5",
     "date-fns": "^3.6.0",
