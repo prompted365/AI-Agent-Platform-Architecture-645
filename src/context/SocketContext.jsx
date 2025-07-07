@@ -1,19 +1,16 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, {createContext, useContext, useEffect, useState} from 'react';
 import io from 'socket.io-client';
 
 const SocketContext = createContext();
 
-export function SocketProvider({ children }) {
+export function SocketProvider({children}) {
   const [socket, setSocket] = useState(null);
   const [connected, setConnected] = useState(false);
 
   useEffect(() => {
-    // Railway server URL
-    const serverUrl = 'https://express-production-0250.up.railway.app';
-    
-    console.log('🔗 Connecting to Railway server:', serverUrl);
-
-    const newSocket = io(serverUrl, {
+    // Connect to same-origin server
+    console.log('🔗 Connecting to server...');
+    const newSocket = io({
       transports: ['websocket', 'polling'], // Try WebSocket first, fallback to polling
       path: '/socket.io',
       timeout: 20000,
@@ -24,12 +21,12 @@ export function SocketProvider({ children }) {
 
     newSocket.on('connect', () => {
       setConnected(true);
-      console.log('✅ Connected to Railway server:', serverUrl);
+      console.log('✅ Connected to server');
     });
 
     newSocket.on('disconnect', () => {
       setConnected(false);
-      console.log('❌ Disconnected from Railway server');
+      console.log('❌ Disconnected from server');
     });
 
     newSocket.on('connect_error', (error) => {

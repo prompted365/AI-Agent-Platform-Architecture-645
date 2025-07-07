@@ -1,116 +1,102 @@
 import express from 'express';
-import { createServer } from 'http';
-import { Server } from 'socket.io';
+import {createServer} from 'http';
+import {Server} from 'socket.io';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
-import { v4 as uuidv4 } from 'uuid';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
-
+import {v4 as uuidv4} from 'uuid';
+import {fileURLToPath} from 'url';
+import {dirname,join} from 'path';
+import path from 'path';
 // Services
-import { AgentService } from './services/AgentService.js';
-import { AstraService } from './services/AstraService.js';
-import { GitHubService } from './services/GitHubService.js';
-import { SandboxService } from './services/SandboxService.js';
-import { MCPService } from './services/MCPService.js';
-import { SwarmService } from './services/SwarmService.js';
-import { SwarmEventBus } from './services/SwarmEventBus.js';
-import { LLMService } from './services/LLMService.js';
+import {AgentService} from './services/AgentService.js';
+import {AstraService} from './services/AstraService.js';
+import {GitHubService} from './services/GitHubService.js';
+import {SandboxService} from './services/SandboxService.js';
+import {MCPService} from './services/MCPService.js';
+import {SwarmService} from './services/SwarmService.js';
+import {SwarmEventBus} from './services/SwarmEventBus.js';
+import {LLMService} from './services/LLMService.js';
 
 dotenv.config();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const __filename=fileURLToPath(import.meta.url);
+const __dirname=dirname(__filename);
+const app=express();
+const server=createServer(app);
 
-const app = express();
-const server = createServer(app);
-
-// CORS configuration for cloud deployment
-const corsOptions = {
+// CORS configuration for cloud deployment 
+const corsOptions={
   origin: [
-    'https://tubular-biscochitos-608b9a.netlify.app',
     'http://localhost:5173',
     'http://localhost:3000'
   ],
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  methods: ['GET','POST','PUT','DELETE'],
   credentials: true
 };
 
-const io = new Server(server, {
+const io=new Server(server,{
   cors: corsOptions
 });
 
-// Middleware
+// Middleware 
 app.use(helmet({
-  crossOriginEmbedderPolicy: false // Allow embedding for Netlify
+  crossOriginEmbedderPolicy: false // Allow embedding for Railway
 }));
 app.use(cors(corsOptions));
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({limit: '10mb'}));
+app.use(express.urlencoded({extended: true,limit: '10mb'}));
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+// Rate limiting 
+const limiter=rateLimit({
+  windowMs: 15 * 60 * 1000,// 15 minutes 
   max: 100 // limit each IP to 100 requests per windowMs
 });
-app.use('/api/', limiter);
+app.use('/api/',limiter);
 
-// Serve static files in production
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(join(__dirname, '../dist')));
-}
+// Initialize services 
+const eventBus=new SwarmEventBus();
+const swarmService=new SwarmService();
+const llmService=new LLMService();
+const astraService=new AstraService();
+const githubService=new GitHubService();
+const sandboxService=new SandboxService();
+const mcpService=new MCPService();
+const agentService=new AgentService(swarmService);
 
-// Initialize services
-const eventBus = new SwarmEventBus();
-const swarmService = new SwarmService();
-const llmService = new LLMService();
-const astraService = new AstraService();
-const githubService = new GitHubService();
-const sandboxService = new SandboxService();
-const mcpService = new MCPService();
-const agentService = new AgentService(swarmService);
-
-// Initialize services in sequence
-const initializeServices = async () => {
+// Initialize services in sequence 
+const initializeServices=async ()=> {
   try {
     console.log('🚀 Initializing services...');
-    
-    // Check API key
+    // Check API key 
     if (!process.env.REQUESTY_API_KEY) {
       console.error('❌ REQUESTY_API_KEY not found in environment variables');
       console.error('💡 Please add your Requesty API key to Railway environment variables');
     } else {
-      const keyPrefix = process.env.REQUESTY_API_KEY.substring(0, 10);
+      const keyPrefix=process.env.REQUESTY_API_KEY.substring(0,10);
       console.log(`✅ REQUESTY_API_KEY found (${keyPrefix}...)`);
-    }
+    } 
 
-    // Initialize event bus first
+    // Initialize event bus first 
     await eventBus.initialize(process.env.REDIS_URL);
-
-    // Initialize swarm service with event bus support
+    // Initialize swarm service with event bus support 
     await swarmService.initialize(process.env.REDIS_URL);
-
-    // Initialize other services
+    // Initialize other services 
     await agentService.initialize();
-    
     if (process.env.ASTRA_DB_ID) {
       await astraService.initialize();
-    }
-    
+    } 
     await mcpService.initialize();
-
     console.log('✅ All services initialized successfully');
   } catch (error) {
-    console.error('❌ Service initialization error:', error);
+    console.error('❌ Service initialization error:',error);
   }
 };
-
 initializeServices();
 
-// Health check
-app.get('/health', (req, res) => {
+// Health check 
+app.get('/health',(req,res)=> {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
@@ -124,26 +110,19 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Enhanced LLM Test endpoint with Sonnet-4 support
-app.post('/api/llm/test', async (req, res) => {
+// Enhanced LLM Test endpoint with Sonnet-4 support 
+app.post('/api/llm/test',async (req,res)=> {
   try {
-    const { 
-      message = "Hello! Can you respond with 'OK' to confirm the connection works?",
-      model = "anthropic/claude-sonnet-4-0"
-    } = req.body;
-    
-    console.log('🧪 Testing LLM with message:', message);
-    console.log('🔑 API Key status:', process.env.REQUESTY_API_KEY ? 'Present' : 'Missing');
-    console.log('🤖 Model:', model);
-    
-    const response = await llmService.generateResponse(message, {
+    const {message="Hello! Can you respond with 'OK' to confirm the connection works?",model="anthropic/claude-sonnet-4-0"}=req.body;
+    console.log('🧪 Testing LLM with message:',message);
+    console.log('🔑 API Key status:',process.env.REQUESTY_API_KEY ? 'Present' : 'Missing');
+    console.log('🤖 Model:',model);
+    const response=await llmService.generateResponse(message,{
       model,
-      context: { test: true },
+      context: {test: true},
       reasoning_effort: 'low'
     });
-    
     console.log('✅ LLM test successful');
-    
     res.json({
       success: true,
       response,
@@ -151,7 +130,7 @@ app.post('/api/llm/test', async (req, res) => {
       model
     });
   } catch (error) {
-    console.error('❌ LLM test error:', error);
+    console.error('❌ LLM test error:',error);
     res.status(500).json({
       success: false,
       error: error.message,
@@ -160,19 +139,18 @@ app.post('/api/llm/test', async (req, res) => {
   }
 });
 
-// Model testing endpoint with reasoning models
-app.post('/api/llm/test-models', async (req, res) => {
+// Model testing endpoint with reasoning models 
+app.post('/api/llm/test-models',async (req,res)=> {
   try {
     console.log('🧪 Testing multiple models...');
-    const results = await llmService.testModels();
-    
+    const results=await llmService.testModels();
     res.json({
       success: true,
       results,
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error('❌ Model test error:', error);
+    console.error('❌ Model test error:',error);
     res.status(500).json({
       success: false,
       error: error.message,
@@ -181,12 +159,11 @@ app.post('/api/llm/test-models', async (req, res) => {
   }
 });
 
-// LLM Health check endpoint
-app.get('/api/llm/health', async (req, res) => {
+// LLM Health check endpoint 
+app.get('/api/llm/health',async (req,res)=> {
   try {
-    const healthCheck = await llmService.healthCheck();
-    
-    if (healthCheck.status === 'healthy') {
+    const healthCheck=await llmService.healthCheck();
+    if (healthCheck.status==='healthy') {
       res.json(healthCheck);
     } else {
       res.status(503).json(healthCheck);
@@ -200,138 +177,136 @@ app.get('/api/llm/health', async (req, res) => {
   }
 });
 
-// API Routes
-// Swarm Management API
-app.get('/api/swarms', async (req, res) => {
+// API Routes 
+// Swarm Management API 
+app.get('/api/swarms',async (req,res)=> {
   try {
-    const swarms = swarmService.getSwarms();
+    const swarms=swarmService.getSwarms();
     res.json(swarms);
   } catch (error) {
-    console.error('Error fetching swarms:', error);
-    res.status(500).json({ error: 'Failed to fetch swarms' });
+    console.error('Error fetching swarms:',error);
+    res.status(500).json({error: 'Failed to fetch swarms'});
   }
 });
 
-app.post('/api/swarms', async (req, res) => {
+app.post('/api/swarms',async (req,res)=> {
   try {
-    const swarm = await swarmService.createSwarm(req.body);
+    const swarm=await swarmService.createSwarm(req.body);
     res.json(swarm);
   } catch (error) {
-    console.error('Error creating swarm:', error);
-    res.status(500).json({ error: 'Failed to create swarm' });
+    console.error('Error creating swarm:',error);
+    res.status(500).json({error: 'Failed to create swarm'});
   }
 });
 
-app.get('/api/swarms/:swarmId', async (req, res) => {
+app.get('/api/swarms/:swarmId',async (req,res)=> {
   try {
-    const swarm = swarmService.swarms.get(req.params.swarmId);
+    const swarm=swarmService.swarms.get(req.params.swarmId);
     if (!swarm) {
-      return res.status(404).json({ error: 'Swarm not found' });
-    }
+      return res.status(404).json({error: 'Swarm not found'});
+    } 
     res.json(swarm);
   } catch (error) {
-    console.error('Error fetching swarm:', error);
-    res.status(500).json({ error: 'Failed to fetch swarm' });
+    console.error('Error fetching swarm:',error);
+    res.status(500).json({error: 'Failed to fetch swarm'});
   }
 });
 
-app.get('/api/swarms/:swarmId/agents', async (req, res) => {
+app.get('/api/swarms/:swarmId/agents',async (req,res)=> {
   try {
-    const agents = swarmService.getAgents(req.params.swarmId);
+    const agents=swarmService.getAgents(req.params.swarmId);
     res.json(agents);
   } catch (error) {
-    console.error('Error fetching swarm agents:', error);
-    res.status(500).json({ error: 'Failed to fetch swarm agents' });
+    console.error('Error fetching swarm agents:',error);
+    res.status(500).json({error: 'Failed to fetch swarm agents'});
   }
 });
 
-app.post('/api/swarms/:swarmId/tasks', async (req, res) => {
+app.post('/api/swarms/:swarmId/tasks',async (req,res)=> {
   try {
-    const task = await swarmService.submitTask({
+    const task=await swarmService.submitTask({
       ...req.body,
       swarmId: req.params.swarmId
     });
     res.json(task);
   } catch (error) {
-    console.error('Error creating swarm task:', error);
-    res.status(500).json({ error: 'Failed to create swarm task' });
+    console.error('Error creating swarm task:',error);
+    res.status(500).json({error: 'Failed to create swarm task'});
   }
 });
 
-// Projects API
-app.get('/api/projects', async (req, res) => {
+// Projects API 
+app.get('/api/projects',async (req,res)=> {
   try {
-    const projects = await astraService.getProjects();
+    const projects=await astraService.getProjects();
     res.json(projects);
   } catch (error) {
-    console.error('Error fetching projects:', error);
-    res.status(500).json({ error: 'Failed to fetch projects' });
+    console.error('Error fetching projects:',error);
+    res.status(500).json({error: 'Failed to fetch projects'});
   }
 });
 
-app.post('/api/projects', async (req, res) => {
+app.post('/api/projects',async (req,res)=> {
   try {
-    const project = await astraService.createProject(req.body);
+    const project=await astraService.createProject(req.body);
     res.json(project);
   } catch (error) {
-    console.error('Error creating project:', error);
-    res.status(500).json({ error: 'Failed to create project' });
+    console.error('Error creating project:',error);
+    res.status(500).json({error: 'Failed to create project'});
   }
 });
 
-// Agents API
-app.get('/api/agents', async (req, res) => {
+// Agents API 
+app.get('/api/agents',async (req,res)=> {
   try {
-    const agents = await agentService.getAgents();
+    const agents=await agentService.getAgents();
     res.json(agents);
   } catch (error) {
-    console.error('Error fetching agents:', error);
-    res.status(500).json({ error: 'Failed to fetch agents' });
+    console.error('Error fetching agents:',error);
+    res.status(500).json({error: 'Failed to fetch agents'});
   }
 });
 
-app.post('/api/agents', async (req, res) => {
+app.post('/api/agents',async (req,res)=> {
   try {
-    const agent = await agentService.createAgent(req.body);
+    const agent=await agentService.createAgent(req.body);
     res.json(agent);
   } catch (error) {
-    console.error('Error creating agent:', error);
-    res.status(500).json({ error: 'Failed to create agent' });
+    console.error('Error creating agent:',error);
+    res.status(500).json({error: 'Failed to create agent'});
   }
 });
 
-// Sandbox API
-app.post('/api/sandbox/execute', async (req, res) => {
+// Sandbox API 
+app.post('/api/sandbox/execute',async (req,res)=> {
   try {
-    const { code, language, environment } = req.body;
-    const result = await sandboxService.executeCode(code, language, environment);
+    const {code,language,environment}=req.body;
+    const result=await sandboxService.executeCode(code,language,environment);
     res.json(result);
   } catch (error) {
-    console.error('Error executing code:', error);
-    res.status(500).json({ error: 'Failed to execute code' });
+    console.error('Error executing code:',error);
+    res.status(500).json({error: 'Failed to execute code'});
   }
 });
 
-// GitHub API
-app.post('/api/github/sync', async (req, res) => {
+// GitHub API 
+app.post('/api/github/sync',async (req,res)=> {
   try {
-    const { projectId, repoUrl, token } = req.body;
-    const result = await githubService.syncProject(projectId, repoUrl, token);
+    const {projectId,repoUrl,token}=req.body;
+    const result=await githubService.syncProject(projectId,repoUrl,token);
     res.json(result);
   } catch (error) {
-    console.error('Error syncing GitHub:', error);
-    res.status(500).json({ error: 'Failed to sync with GitHub' });
+    console.error('Error syncing GitHub:',error);
+    res.status(500).json({error: 'Failed to sync with GitHub'});
   }
 });
 
-// Artifact generation API with reasoning
-app.post('/api/artifacts/generate', async (req, res) => {
+// Artifact generation API with reasoning 
+app.post('/api/artifacts/generate',async (req,res)=> {
   try {
-    const { description, type = 'code', language = 'javascript' } = req.body;
-    console.log('🎨 Generating artifact:', { description, type, language });
-    
-    const content = await llmService.generateArtifact(description, type, language);
-    
+    const {description,type='code',language='javascript'}=req.body;
+    console.log('🎨 Generating artifact:',{description,type,language});
+    const content=await llmService.generateArtifact(description,type,language);
     res.json({
       success: true,
       content,
@@ -340,40 +315,39 @@ app.post('/api/artifacts/generate', async (req, res) => {
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error('❌ Error generating artifact:', error);
-    res.status(500).json({ 
+    console.error('❌ Error generating artifact:',error);
+    res.status(500).json({
       success: false,
-      error: error.message 
+      error: error.message
     });
   }
 });
 
-// Socket.IO connection handling
-io.on('connection', (socket) => {
-  console.log('🔌 Client connected:', socket.id);
+// Socket.IO connection handling 
+io.on('connection',(socket)=> {
+  console.log('🔌 Client connected:',socket.id);
 
-  // Handle client message
-  socket.on('message', async (data) => {
+  // Handle client message 
+  socket.on('message',async (data)=> {
     try {
-      const { content, agent, context } = data;
-      console.log('💬 Received message:', { content: content.substring(0, 100), agent: agent?.name });
-
-      // Process message through MCP
-      const mcpResponse = await mcpService.processMessage(content, context);
-
-      // Generate AI response with reasoning
-      const aiResponse = await llmService.generateResponse(content, {
-        agent,
-        context: {
-          ...context,
-          mcp: mcpResponse
-        },
-        reasoning_effort: 'medium'
+      const {content,agent,context}=data;
+      console.log('💬 Received message:',{
+        content: content.substring(0,100),
+        agent: agent?.name
       });
 
-      console.log('🤖 Generated AI response with reasoning:', aiResponse.substring(0, 100));
+      // Process message through MCP 
+      const mcpResponse=await mcpService.processMessage(content,context);
 
-      // Store in vector database if Astra is connected
+      // Generate AI response with reasoning 
+      const aiResponse=await llmService.generateResponse(content,{
+        agent,
+        context: {...context,mcp: mcpResponse},
+        reasoning_effort: 'medium'
+      });
+      console.log('🤖 Generated AI response with reasoning:',aiResponse.substring(0,100));
+
+      // Store in vector database if Astra is connected 
       if (process.env.ASTRA_DB_ID) {
         await astraService.storeMessage({
           id: uuidv4(),
@@ -383,153 +357,153 @@ io.on('connection', (socket) => {
           agent,
           context
         });
-      }
+      } 
 
-      socket.emit('message', {
+      socket.emit('message',{
         content: aiResponse,
         agent: agent?.name || 'Claude Sonnet-4',
         timestamp: new Date()
       });
     } catch (error) {
-      console.error('❌ Error processing message:', error);
-      socket.emit('error', { 
+      console.error('❌ Error processing message:',error);
+      socket.emit('error',{
         message: 'Failed to process message',
-        details: error.message 
+        details: error.message
       });
     }
   });
 
-  // Handle code execution
-  socket.on('code-execute', async (data) => {
+  // Handle code execution 
+  socket.on('code-execute',async (data)=> {
     try {
-      const { code, language, environment } = data;
-      const result = await sandboxService.executeCode(code, language, environment);
-      socket.emit('code-result', result);
+      const {code,language,environment}=data;
+      const result=await sandboxService.executeCode(code,language,environment);
+      socket.emit('code-result',result);
     } catch (error) {
-      console.error('❌ Error executing code:', error);
-      socket.emit('code-error', { message: 'Failed to execute code' });
+      console.error('❌ Error executing code:',error);
+      socket.emit('code-error',{message: 'Failed to execute code'});
     }
   });
 
-  // Handle agent task execution with reasoning
-  socket.on('agent-task', async (data) => {
+  // Handle agent task execution with reasoning 
+  socket.on('agent-task',async (data)=> {
     try {
-      const { agentId, task, context } = data;
-      
-      // Get AI assistance for the task with reasoning
-      const agent = await agentService.getAgent(agentId);
+      const {agentId,task,context}=data;
+
+      // Get AI assistance for the task with reasoning 
+      const agent=await agentService.getAgent(agentId);
       if (agent) {
-        const aiGuidance = await llmService.processSwarmTask(task, {
+        const aiGuidance=await llmService.processSwarmTask(task,{
           role: agent.role,
           capabilities: agent.capabilities,
           swarmId: agent.swarmId
         });
-        
-        // Include AI guidance in task execution
-        task.aiGuidance = aiGuidance;
-      }
-      
-      const result = await agentService.executeTask(agentId, task, context);
-      socket.emit('agent-result', result);
+
+        // Include AI guidance in task execution 
+        task.aiGuidance=aiGuidance;
+      } 
+
+      const result=await agentService.executeTask(agentId,task,context);
+      socket.emit('agent-result',result);
     } catch (error) {
-      console.error('❌ Error executing agent task:', error);
-      socket.emit('agent-error', { message: 'Failed to execute agent task' });
+      console.error('❌ Error executing agent task:',error);
+      socket.emit('agent-error',{message: 'Failed to execute agent task'});
     }
   });
 
-  // Handle swarm operations with reasoning
-  socket.on('swarm-create', async (data) => {
+  // Handle swarm operations with reasoning 
+  socket.on('swarm-create',async (data)=> {
     try {
-      const swarm = await swarmService.createSwarm(data);
-      socket.emit('swarm-created', swarm);
+      const swarm=await swarmService.createSwarm(data);
+      socket.emit('swarm-created',swarm);
     } catch (error) {
-      console.error('❌ Error creating swarm:', error);
-      socket.emit('swarm-error', { message: 'Failed to create swarm' });
+      console.error('❌ Error creating swarm:',error);
+      socket.emit('swarm-error',{message: 'Failed to create swarm'});
     }
   });
 
-  socket.on('swarm-task', async (data) => {
+  socket.on('swarm-task',async (data)=> {
     try {
-      const { swarmId, task } = data;
-      
-      // Get AI assistance for task planning with reasoning
-      const swarm = swarmService.swarms.get(swarmId);
+      const {swarmId,task}=data;
+
+      // Get AI assistance for task planning with reasoning 
+      const swarm=swarmService.swarms.get(swarmId);
       if (swarm) {
-        const aiAnalysis = await llmService.processSwarmTask(task, {
+        const aiAnalysis=await llmService.processSwarmTask(task,{
           role: 'coordinator',
-          capabilities: ['task_distribution', 'coordination'],
+          capabilities: ['task_distribution','coordination'],
           swarmId: swarmId
         });
-        
-        task.aiAnalysis = aiAnalysis;
-      }
-      
-      const result = await swarmService.submitTask({ ...task, swarmId });
-      socket.emit('swarm-task-submitted', result);
+        task.aiAnalysis=aiAnalysis;
+      } 
+
+      const result=await swarmService.submitTask({...task,swarmId});
+      socket.emit('swarm-task-submitted',result);
     } catch (error) {
-      console.error('❌ Error submitting swarm task:', error);
-      socket.emit('swarm-error', { message: 'Failed to submit swarm task' });
+      console.error('❌ Error submitting swarm task:',error);
+      socket.emit('swarm-error',{message: 'Failed to submit swarm task'});
     }
   });
 
-  // Subscribe client to swarm events
-  socket.on('swarm-subscribe', async (data) => {
+  // Subscribe client to swarm events 
+  socket.on('swarm-subscribe',async (data)=> {
     try {
-      const { swarmId } = data;
-      // Create room name for this swarm
-      const roomName = `swarm:${swarmId}`;
-      
-      // Join socket.io room
+      const {swarmId}=data;
+
+      // Create room name for this swarm 
+      const roomName=`swarm:${swarmId}`;
+
+      // Join socket.io room 
       socket.join(roomName);
-      
-      // Subscribe to swarm events
-      const unsubscribe = eventBus.subscribe('swarm:*', (event) => {
-        // Only forward events for this swarm
-        if (event.swarmId === swarmId) {
-          io.to(roomName).emit('swarm-event', event);
+
+      // Subscribe to swarm events 
+      const unsubscribe=eventBus.subscribe('swarm:*',(event)=> {
+        // Only forward events for this swarm 
+        if (event.swarmId===swarmId) {
+          io.to(roomName).emit('swarm-event',event);
         }
       });
-      
-      // Store unsubscribe function
-      socket.data.swarmUnsubscribe = unsubscribe;
-      
-      socket.emit('swarm-subscribed', { swarmId });
+
+      // Store unsubscribe function 
+      socket.data.swarmUnsubscribe=unsubscribe;
+      socket.emit('swarm-subscribed',{swarmId});
     } catch (error) {
-      console.error('❌ Error subscribing to swarm:', error);
-      socket.emit('swarm-error', { message: 'Failed to subscribe to swarm' });
+      console.error('❌ Error subscribing to swarm:',error);
+      socket.emit('swarm-error',{message: 'Failed to subscribe to swarm'});
     }
   });
 
-  // Handle disconnect
-  socket.on('disconnect', () => {
-    console.log('🔌 Client disconnected:', socket.id);
-    
-    // Clean up any swarm subscriptions
+  // Handle disconnect 
+  socket.on('disconnect',()=> {
+    console.log('🔌 Client disconnected:',socket.id);
+    // Clean up any swarm subscriptions 
     if (socket.data.swarmUnsubscribe) {
       socket.data.swarmUnsubscribe();
     }
   });
 });
 
-// Set up event relaying from event bus to socket.io
-eventBus.subscribe('swarm:*', (event) => {
-  // Broadcast to all connected clients
-  io.emit('swarm-event', event);
+// Set up event relaying from event bus to socket.io 
+eventBus.subscribe('swarm:*',(event)=> {
+  // Broadcast to all connected clients 
+  io.emit('swarm-event',event);
 });
 
-// Catch-all handler for production
-if (process.env.NODE_ENV === 'production') {
-  app.get('*', (req, res) => {
-    res.sendFile(join(__dirname, '../dist/index.html'));
-  });
-}
+// Serve static files from the React app build directory
+app.use(express.static(path.join(__dirname, '../dist')));
 
-const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => {
+// Catch-all handler for all other routes - send to React app
+// Must be AFTER API routes
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../dist/index.html'));
+});
+
+const PORT=process.env.PORT || 3001;
+server.listen(PORT,()=> {
   console.log(`🚀 Swarm Agents server running on port ${PORT}`);
   console.log(`🔗 Health check: http://localhost:${PORT}/health`);
   console.log(`🧪 LLM test: http://localhost:${PORT}/api/llm/test`);
   console.log(`🏥 LLM health: http://localhost:${PORT}/api/llm/health`);
   console.log(`🧪 Model test: http://localhost:${PORT}/api/llm/test-models`);
-  console.log(`🌐 CORS origins:`, corsOptions.origin);
+  console.log(`🌐 CORS origins:`,corsOptions.origin);
 });

@@ -38,6 +38,12 @@ npm run dev
 - Click "Test API" button
 - Verify connection works
 
+### 6. Production Deployment
+```bash
+# Deploy to Railway with one command
+npm run deploy
+```
+
 ## 🔧 API Configuration
 
 ### Requesty API Integration
@@ -56,14 +62,8 @@ Content-Type: application/json
 {
   "model": "openai/gpt-4o-mini",
   "messages": [
-    {
-      "role": "system",
-      "content": "System prompt"
-    },
-    {
-      "role": "user", 
-      "content": "User message"
-    }
+    {"role": "system", "content": "System prompt"},
+    {"role": "user", "content": "User message"}
   ],
   "temperature": 0.7,
   "max_tokens": 4000
@@ -118,18 +118,18 @@ Content-Type: application/json
 ### Debug Steps:
 
 1. **Test API Connection**
-   ```bash
-   curl -X POST https://router.requesty.ai/v1/chat/completions \
-     -H "Authorization: Bearer YOUR_KEY" \
-     -H "Content-Type: application/json" \
-     -d '{"model":"openai/gpt-4o-mini","messages":[{"role":"user","content":"Hello"}]}'
-   ```
+```bash
+curl -X POST https://router.requesty.ai/v1/chat/completions \
+  -H "Authorization: Bearer YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"openai/gpt-4o-mini","messages":[{"role":"user","content":"Hello"}]}'
+```
 
 2. **Check Server Logs**
-   ```bash
-   npm run dev:server
-   # Look for LLM service logs
-   ```
+```bash
+npm run dev:server
+# Look for LLM service logs
+```
 
 3. **Use Health Check**
    - Visit: `http://localhost:3001/health`
@@ -170,7 +170,6 @@ Requesty provides access to 150+ models including:
 - Security isolation
 
 ## 🔐 Security Features
-
 - JWT-based authentication
 - Row-level security policies
 - Rate limiting and throttling
@@ -212,7 +211,6 @@ REDIS_URL=your_redis_url
 - `POST /api/sandbox/execute` - Execute code
 
 ## 🤝 Contributing
-
 1. Fork the repository
 2. Create a feature branch
 3. Add your Requesty API key to test

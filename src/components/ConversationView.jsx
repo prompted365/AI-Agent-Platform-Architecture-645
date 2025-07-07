@@ -1,16 +1,29 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, {useState, useEffect, useRef} from 'react';
+import {motion, AnimatePresence} from 'framer-motion';
 import SafeIcon from '../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 import MessageBubble from './MessageBubble';
 import ArtifactViewer from './ArtifactViewer';
 import ShareDialog from './ShareDialog';
 import conversationService from '../services/ConversationService';
-import { useAuth } from '../context/AuthContext';
+import {useAuth} from '../context/AuthContext';
 
-const { FiSend, FiPaperclip, FiShare2, FiEdit3, FiStar, FiFolder, FiCode, FiFile, FiPlus, FiMaximize2, FiX, FiZap } = FiIcons;
+const {
+  FiSend,
+  FiPaperclip,
+  FiShare2,
+  FiEdit3,
+  FiStar,
+  FiFolder,
+  FiCode,
+  FiFile,
+  FiPlus,
+  FiMaximize2,
+  FiX,
+  FiZap
+} = FiIcons;
 
-export default function ConversationView({ conversation, onConversationUpdate, currentOrganization }) {
+export default function ConversationView({conversation, onConversationUpdate, currentOrganization}) {
   const [messages, setMessages] = useState([]);
   const [artifacts, setArtifacts] = useState([]);
   const [newMessage, setNewMessage] = useState('');
@@ -21,12 +34,7 @@ export default function ConversationView({ conversation, onConversationUpdate, c
   const [isArtifactFullscreen, setIsArtifactFullscreen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef(null);
-  const { user } = useAuth();
-
-  // Get API base URL dynamically
-  const getApiBaseUrl = () => {
-    return 'https://express-production-0250.up.railway.app';
-  };
+  const {user} = useAuth();
 
   useEffect(() => {
     if (conversation) {
@@ -41,7 +49,7 @@ export default function ConversationView({ conversation, onConversationUpdate, c
   }, [messages]);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({behavior: 'smooth'});
   };
 
   const loadMessages = async () => {
@@ -77,12 +85,11 @@ export default function ConversationView({ conversation, onConversationUpdate, c
         userMessageContent,
         'user'
       );
-
       // Add to local state
       setMessages(prev => [...prev, userMessage]);
 
       // Call backend API for AI response
-      const response = await fetch(`${getApiBaseUrl()}/api/llm/test`, {
+      const response = await fetch(`/api/llm/test`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -94,7 +101,6 @@ export default function ConversationView({ conversation, onConversationUpdate, c
       });
 
       const aiData = await response.json();
-      
       if (aiData.success) {
         // Add AI response to database
         const aiMessage = await conversationService.addMessage(
@@ -102,7 +108,6 @@ export default function ConversationView({ conversation, onConversationUpdate, c
           aiData.response,
           'assistant'
         );
-
         // Add to local state
         setMessages(prev => [...prev, aiMessage]);
 
@@ -129,7 +134,6 @@ export default function ConversationView({ conversation, onConversationUpdate, c
       );
     } catch (error) {
       console.error('Error sending message:', error);
-      
       // Add error message
       const errorMessage = await conversationService.addMessage(
         conversation.id,
@@ -206,7 +210,7 @@ export default function ConversationView({ conversation, onConversationUpdate, c
     }
 
     try {
-      await conversationService.updateConversation(conversation.id, { title: editedTitle });
+      await conversationService.updateConversation(conversation.id, {title: editedTitle});
       onConversationUpdate?.();
       setIsEditing(false);
       
@@ -215,7 +219,10 @@ export default function ConversationView({ conversation, onConversationUpdate, c
         'conversation_renamed',
         'conversation',
         conversation.id,
-        { old_title: conversation.title, new_title: editedTitle }
+        {
+          old_title: conversation.title,
+          new_title: editedTitle
+        }
       );
     } catch (error) {
       console.error('Error updating title:', error);
@@ -231,7 +238,7 @@ export default function ConversationView({ conversation, onConversationUpdate, c
 
   const handleGenerateArtifact = async (description, type = 'code') => {
     try {
-      const response = await fetch(`${getApiBaseUrl()}/api/artifacts/generate`, {
+      const response = await fetch(`/api/artifacts/generate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -244,7 +251,6 @@ export default function ConversationView({ conversation, onConversationUpdate, c
       });
 
       const data = await response.json();
-      
       if (data.success) {
         const artifact = await conversationService.createArtifact({
           conversation_id: conversation.id,
@@ -309,7 +315,6 @@ export default function ConversationView({ conversation, onConversationUpdate, c
                 <SafeIcon icon={FiEdit3} className="w-4 h-4 text-gray-400" />
               </button>
             </div>
-            
             <div className="flex items-center space-x-2">
               <button
                 onClick={() => handleGenerateArtifact('Create a sample React component')}
@@ -344,14 +349,20 @@ export default function ConversationView({ conversation, onConversationUpdate, c
 
           {isLoading && (
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
+              initial={{opacity: 0}}
+              animate={{opacity: 1}}
               className="flex items-center space-x-2 text-gray-400"
             >
               <div className="flex space-x-1">
                 <div className="w-2 h-2 bg-primary-500 rounded-full animate-bounce"></div>
-                <div className="w-2 h-2 bg-primary-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                <div className="w-2 h-2 bg-primary-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                <div
+                  className="w-2 h-2 bg-primary-500 rounded-full animate-bounce"
+                  style={{animationDelay: '0.1s'}}
+                ></div>
+                <div
+                  className="w-2 h-2 bg-primary-500 rounded-full animate-bounce"
+                  style={{animationDelay: '0.2s'}}
+                ></div>
               </div>
               <span className="text-sm">AI is thinking...</span>
             </motion.div>
@@ -366,7 +377,6 @@ export default function ConversationView({ conversation, onConversationUpdate, c
             <button className="p-2 rounded-lg hover:bg-dark-700 transition-colors">
               <SafeIcon icon={FiPaperclip} className="w-5 h-5 text-gray-400" />
             </button>
-            
             <div className="flex-1">
               <textarea
                 value={newMessage}
@@ -375,15 +385,10 @@ export default function ConversationView({ conversation, onConversationUpdate, c
                 placeholder="Type your message... (Enter to send, Shift+Enter for new line)"
                 className="w-full p-3 bg-dark-800 border border-dark-600 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary-500 text-white"
                 rows={1}
-                style={{
-                  minHeight: '44px',
-                  maxHeight: '120px',
-                  height: 'auto'
-                }}
+                style={{minHeight: '44px', maxHeight: '120px', height: 'auto'}}
                 disabled={isLoading}
               />
             </div>
-            
             <button
               onClick={handleSendMessage}
               disabled={!newMessage.trim() || isLoading}
@@ -405,12 +410,15 @@ export default function ConversationView({ conversation, onConversationUpdate, c
             {artifacts.map((artifact) => (
               <motion.button
                 key={artifact.id}
-                whileHover={{ scale: 1.02 }}
+                whileHover={{scale: 1.02}}
                 onClick={() => setSelectedArtifact(artifact)}
                 className="w-full p-3 bg-dark-700 rounded-lg hover:bg-dark-600 transition-colors text-left"
               >
                 <div className="flex items-center space-x-2 mb-2">
-                  <SafeIcon icon={artifact.type === 'code' ? FiCode : FiFile} className="w-4 h-4 text-primary-400" />
+                  <SafeIcon
+                    icon={artifact.type === 'code' ? FiCode : FiFile}
+                    className="w-4 h-4 text-primary-400"
+                  />
                   <span className="font-medium text-white truncate">{artifact.title}</span>
                 </div>
                 <div className="text-xs text-gray-400">
@@ -433,16 +441,18 @@ export default function ConversationView({ conversation, onConversationUpdate, c
       <AnimatePresence>
         {selectedArtifact && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            initial={{opacity: 0}}
+            animate={{opacity: 1}}
+            exit={{opacity: 0}}
             className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
           >
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className={`bg-dark-800 rounded-lg border border-dark-700 ${isArtifactFullscreen ? 'w-full h-full' : 'w-4/5 h-4/5'}`}
+              initial={{scale: 0.9, opacity: 0}}
+              animate={{scale: 1, opacity: 1}}
+              exit={{scale: 0.9, opacity: 0}}
+              className={`bg-dark-800 rounded-lg border border-dark-700 ${
+                isArtifactFullscreen ? 'w-full h-full' : 'w-4/5 h-4/5'
+              }`}
             >
               <ArtifactViewer
                 artifact={selectedArtifact}

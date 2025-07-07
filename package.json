@@ -7,15 +7,12 @@
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:server": "nodemon server/index.js",
     "dev:client": "vite",
-    "build": "npm run build:client && npm run build:server",
-    "build:client": "vite build",
-    "build:server": "node scripts/build-server.js",
+    "build": "vite build && npm run copy:server",
+    "copy:server": "node scripts/build-server.js",
     "start": "node server/index.js",
     "lint": "eslint .",
     "preview": "vite preview",
-    "deploy": "railway login && railway up",
-    "deploy:netlify": "npm run build:client && netlify deploy --prod --dir=dist",
-    "deploy:railway": "railway up"
+    "deploy": "railway up"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
