@@ -18,6 +18,7 @@ import {MCPService} from './services/MCPService.js';
 import {SwarmService} from './services/SwarmService.js';
 import {SwarmEventBus} from './services/SwarmEventBus.js';
 import {LLMService} from './services/LLMService.js';
+import {DatabaseService} from './services/DatabaseService.js';
 
 dotenv.config();
 
@@ -56,6 +57,7 @@ const limiter=rateLimit({
 app.use('/api/',limiter);
 
 // Initialize services 
+const databaseService = new DatabaseService();
 const eventBus=new SwarmEventBus();
 const swarmService=new SwarmService();
 const llmService=new LLMService();
@@ -69,6 +71,14 @@ const agentService=new AgentService(swarmService);
 const initializeServices=async ()=> {
   try {
     console.log('🚀 Initializing services...');
+
+    // Initialize database first
+    const dbConnected = await databaseService.initialize();
+    if (!dbConnected) {
+      console.error('❌ Failed to connect to database');
+      process.exit(1);
+    }
+
     // Check API key 
     if (!process.env.REQUESTY_API_KEY) {
       console.error('❌ REQUESTY_API_KEY not found in environment variables');
@@ -78,15 +88,18 @@ const initializeServices=async ()=> {
       console.log(`✅ REQUESTY_API_KEY found (${keyPrefix}...)`);
     } 
 
-    // Initialize event bus first 
+    // Initialize event bus 
     await eventBus.initialize(process.env.REDIS_URL);
     // Initialize swarm service with event bus support 
     await swarmService.initialize(process.env.REDIS_URL);
     // Initialize other services 
     await agentService.initialize();
-    if (process.env.ASTRA_DB_ID) {
+    
+    // Only initialize Astra if Supabase is disabled and Astra is configured
+    if (!databaseService.isSupabaseEnabled && process.env.ASTRA_DB_ID) {
       await astraService.initialize();
     } 
+    
     await mcpService.initialize();
     console.log('✅ All services initialized successfully');
   } catch (error) {
@@ -95,15 +108,31 @@ const initializeServices=async ()=> {
 };
 initializeServices();
 
+// Cleanup on shutdown
+process.on('SIGINT', async () => {
+  console.log('🛑 Shutting down...');
+  await databaseService.disconnect();
+  process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+  console.log('🛑 Shutting down...');
+  await databaseService.disconnect();
+  process.exit(0);
+});
+
 // Health check 
-app.get('/health',(req,res)=> {
+app.get('/health',async (req,res)=> {
+  const dbHealth = await databaseService.healthCheck();
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
+    database: dbHealth,
     services: {
       swarm: !!swarmService,
       eventBus: eventBus.isConnected(),
-      astra: !!process.env.ASTRA_DB_ID,
+      supabase: databaseService.isSupabaseEnabled,
+      astra: !!process.env.ASTRA_DB_ID && !databaseService.isSupabaseEnabled,
       llm: !!process.env.REQUESTY_API_KEY
     },
     cors: corsOptions.origin
@@ -177,11 +206,73 @@ app.get('/api/llm/health',async (req,res)=> {
   }
 });
 
-// API Routes 
+// Database API Routes using Railway PostgreSQL
+app.get('/api/organizations',async (req,res)=> {
+  try {
+    // For demo purposes, use default user
+    const organizations = await databaseService.getOrganizations('default-admin');
+    res.json(organizations);
+  } catch (error) {
+    console.error('Error fetching organizations:',error);
+    res.status(500).json({error: 'Failed to fetch organizations'});
+  }
+});
+
+app.get('/api/conversations',async (req,res)=> {
+  try {
+    const { organizationId, folderId } = req.query;
+    const conversations = await databaseService.getConversations(
+      organizationId || 'default-org', 
+      folderId || null
+    );
+    res.json(conversations);
+  } catch (error) {
+    console.error('Error fetching conversations:',error);
+    res.status(500).json({error: 'Failed to fetch conversations'});
+  }
+});
+
+app.post('/api/conversations',async (req,res)=> {
+  try {
+    const conversation = await databaseService.createConversation({
+      ...req.body,
+      userId: 'default-admin', // For demo
+      organizationId: req.body.organizationId || 'default-org'
+    });
+    res.json(conversation);
+  } catch (error) {
+    console.error('Error creating conversation:',error);
+    res.status(500).json({error: 'Failed to create conversation'});
+  }
+});
+
+app.get('/api/conversations/:id/messages',async (req,res)=> {
+  try {
+    const messages = await databaseService.getMessages(req.params.id);
+    res.json(messages);
+  } catch (error) {
+    console.error('Error fetching messages:',error);
+    res.status(500).json({error: 'Failed to fetch messages'});
+  }
+});
+
+app.post('/api/messages',async (req,res)=> {
+  try {
+    const message = await databaseService.createMessage({
+      ...req.body,
+      userId: 'default-admin' // For demo
+    });
+    res.json(message);
+  } catch (error) {
+    console.error('Error creating message:',error);
+    res.status(500).json({error: 'Failed to create message'});
+  }
+});
+
 // Swarm Management API 
 app.get('/api/swarms',async (req,res)=> {
   try {
-    const swarms=swarmService.getSwarms();
+    const swarms = await databaseService.getSwarms();
     res.json(swarms);
   } catch (error) {
     console.error('Error fetching swarms:',error);
@@ -191,7 +282,7 @@ app.get('/api/swarms',async (req,res)=> {
 
 app.post('/api/swarms',async (req,res)=> {
   try {
-    const swarm=await swarmService.createSwarm(req.body);
+    const swarm = await databaseService.createSwarm(req.body);
     res.json(swarm);
   } catch (error) {
     console.error('Error creating swarm:',error);
@@ -199,22 +290,9 @@ app.post('/api/swarms',async (req,res)=> {
   }
 });
 
-app.get('/api/swarms/:swarmId',async (req,res)=> {
-  try {
-    const swarm=swarmService.swarms.get(req.params.swarmId);
-    if (!swarm) {
-      return res.status(404).json({error: 'Swarm not found'});
-    } 
-    res.json(swarm);
-  } catch (error) {
-    console.error('Error fetching swarm:',error);
-    res.status(500).json({error: 'Failed to fetch swarm'});
-  }
-});
-
 app.get('/api/swarms/:swarmId/agents',async (req,res)=> {
   try {
-    const agents=swarmService.getAgents(req.params.swarmId);
+    const agents = await databaseService.getAgents(req.params.swarmId);
     res.json(agents);
   } catch (error) {
     console.error('Error fetching swarm agents:',error);
@@ -224,7 +302,7 @@ app.get('/api/swarms/:swarmId/agents',async (req,res)=> {
 
 app.post('/api/swarms/:swarmId/tasks',async (req,res)=> {
   try {
-    const task=await swarmService.submitTask({
+    const task = await databaseService.createTask({
       ...req.body,
       swarmId: req.params.swarmId
     });
@@ -238,7 +316,7 @@ app.post('/api/swarms/:swarmId/tasks',async (req,res)=> {
 // Projects API 
 app.get('/api/projects',async (req,res)=> {
   try {
-    const projects=await astraService.getProjects();
+    const projects = await databaseService.getProjects();
     res.json(projects);
   } catch (error) {
     console.error('Error fetching projects:',error);
@@ -248,7 +326,7 @@ app.get('/api/projects',async (req,res)=> {
 
 app.post('/api/projects',async (req,res)=> {
   try {
-    const project=await astraService.createProject(req.body);
+    const project = await databaseService.createProject(req.body);
     res.json(project);
   } catch (error) {
     console.error('Error creating project:',error);
@@ -259,7 +337,7 @@ app.post('/api/projects',async (req,res)=> {
 // Agents API 
 app.get('/api/agents',async (req,res)=> {
   try {
-    const agents=await agentService.getAgents();
+    const agents = await databaseService.getAgents();
     res.json(agents);
   } catch (error) {
     console.error('Error fetching agents:',error);
@@ -269,7 +347,7 @@ app.get('/api/agents',async (req,res)=> {
 
 app.post('/api/agents',async (req,res)=> {
   try {
-    const agent=await agentService.createAgent(req.body);
+    const agent = await databaseService.createAgent(req.body);
     res.json(agent);
   } catch (error) {
     console.error('Error creating agent:',error);
@@ -347,17 +425,22 @@ io.on('connection',(socket)=> {
       });
       console.log('🤖 Generated AI response with reasoning:',aiResponse.substring(0,100));
 
-      // Store in vector database if Astra is connected 
-      if (process.env.ASTRA_DB_ID) {
-        await astraService.storeMessage({
-          id: uuidv4(),
-          content,
-          response: aiResponse,
-          timestamp: new Date(),
-          agent,
-          context
+      // Store in database
+      if (context?.conversationId) {
+        await databaseService.createMessage({
+          conversationId: context.conversationId,
+          userId: 'default-admin',
+          role: 'user',
+          content: content
         });
-      } 
+
+        await databaseService.createMessage({
+          conversationId: context.conversationId,
+          userId: 'default-admin',
+          role: 'assistant',
+          content: aiResponse
+        });
+      }
 
       socket.emit('message',{
         content: aiResponse,
@@ -414,7 +497,7 @@ io.on('connection',(socket)=> {
   // Handle swarm operations with reasoning 
   socket.on('swarm-create',async (data)=> {
     try {
-      const swarm=await swarmService.createSwarm(data);
+      const swarm = await databaseService.createSwarm(data);
       socket.emit('swarm-created',swarm);
     } catch (error) {
       console.error('❌ Error creating swarm:',error);
@@ -427,7 +510,7 @@ io.on('connection',(socket)=> {
       const {swarmId,task}=data;
 
       // Get AI assistance for task planning with reasoning 
-      const swarm=swarmService.swarms.get(swarmId);
+      const swarm = await databaseService.getSwarm(swarmId);
       if (swarm) {
         const aiAnalysis=await llmService.processSwarmTask(task,{
           role: 'coordinator',
@@ -437,7 +520,7 @@ io.on('connection',(socket)=> {
         task.aiAnalysis=aiAnalysis;
       } 
 
-      const result=await swarmService.submitTask({...task,swarmId});
+      const result = await databaseService.createTask({...task,swarmId});
       socket.emit('swarm-task-submitted',result);
     } catch (error) {
       console.error('❌ Error submitting swarm task:',error);
@@ -505,5 +588,5 @@ server.listen(PORT,()=> {
   console.log(`🧪 LLM test: http://localhost:${PORT}/api/llm/test`);
   console.log(`🏥 LLM health: http://localhost:${PORT}/api/llm/health`);
   console.log(`🧪 Model test: http://localhost:${PORT}/api/llm/test-models`);
-  console.log(`🌐 CORS origins:`,corsOptions.origin);
+  console.log(`🌐 Database: ${databaseService.isSupabaseEnabled ? 'Supabase + Railway PostgreSQL' : 'Railway PostgreSQL only'}`);
 });

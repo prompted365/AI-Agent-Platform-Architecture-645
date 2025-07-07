@@ -1,0 +1,392 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  avatar    String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  organizations     OrganizationMember[]
+  conversations     Conversation[]
+  messages          Message[]
+  artifacts         Artifact[]
+  artifactVersions  ArtifactVersion[]
+  folders           Folder[]
+  comments          Comment[]
+  activityLogs      ActivityLog[]
+  sharedConversations SharedConversation[]
+
+  @@map("users")
+}
+
+model Organization {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  settings    Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  members       OrganizationMember[]
+  conversations Conversation[]
+  folders       Folder[]
+  artifacts     Artifact[]
+  activityLogs  ActivityLog[]
+
+  @@map("organizations")
+}
+
+model OrganizationMember {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  userId         String   @map("user_id")
+  role           String   @default("member") // admin, member, viewer
+  invitedBy      String?  @map("invited_by")
+  joinedAt       DateTime @default(now()) @map("joined_at")
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@map("organization_members")
+}
+
+model Folder {
+  id             String   @id @default(cuid())
+  name           String
+  color          String   @default("#3B82F6")
+  organizationId String   @map("organization_id")
+  userId         String   @map("user_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversations Conversation[]
+
+  @@map("folders")
+}
+
+model Conversation {
+  id             String   @id @default(cuid())
+  title          String
+  organizationId String   @map("organization_id")
+  userId         String   @map("user_id")
+  folderId       String?  @map("folder_id")
+  isShared       Boolean  @default(false) @map("is_shared")
+  metadata       Json?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  organization        Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user                User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folder              Folder?               @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  messages            Message[]
+  artifacts           Artifact[]
+  comments            Comment[]
+  sharedConversations SharedConversation[]
+
+  @@map("conversations")
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  conversationId String   @map("conversation_id")
+  userId         String   @map("user_id")
+  role           String   // user, assistant, system
+  content        String
+  metadata       Json?
+  embedding      Unsupported("vector(1536)")?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  // Relations
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("messages")
+}
+
+model Artifact {
+  id             String   @id @default(cuid())
+  title          String
+  type           String   // code, document, web_app, component, analysis
+  language       String?
+  content        String
+  version        Int      @default(1)
+  isPublished    Boolean  @default(false) @map("is_published")
+  conversationId String   @map("conversation_id")
+  organizationId String   @map("organization_id")
+  userId         String   @map("user_id")
+  metadata       Json?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  conversation Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  versions     ArtifactVersion[]
+  comments     Comment[]
+
+  @@map("artifacts")
+}
+
+model ArtifactVersion {
+  id         String   @id @default(cuid())
+  artifactId String   @map("artifact_id")
+  version    Int
+  content    String
+  metadata   Json?
+  createdBy  String   @map("created_by")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  // Relations
+  artifact  Artifact @relation(fields: [artifactId], references: [id], onDelete: Cascade)
+  createdByUser User @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+
+  @@unique([artifactId, version])
+  @@map("artifact_versions")
+}
+
+model SharedConversation {
+  id             String   @id @default(cuid())
+  conversationId String   @map("conversation_id")
+  shareToken     String   @unique @map("share_token")
+  permissions    Json     @default("{\"can_view\": true, \"can_comment\": false, \"can_edit\": false}")
+  accessCount    Int      @default(0) @map("access_count")
+  expiresAt      DateTime? @map("expires_at")
+  createdBy      String   @map("created_by")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  // Relations
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  creator      User         @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+
+  @@map("shared_conversations")
+}
+
+model Comment {
+  id             String   @id @default(cuid())
+  content        String
+  conversationId String?  @map("conversation_id")
+  artifactId     String?  @map("artifact_id")
+  userId         String   @map("user_id")
+  parentId       String?  @map("parent_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  artifact     Artifact?     @relation(fields: [artifactId], references: [id], onDelete: Cascade)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent       Comment?      @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies      Comment[]     @relation("CommentReplies")
+
+  @@map("comments")
+}
+
+model ActivityLog {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  userId         String   @map("user_id")
+  action         String   // created, updated, deleted, shared, etc.
+  resourceType   String   @map("resource_type") // conversation, artifact, folder, etc.
+  resourceId     String?  @map("resource_id")
+  metadata       Json?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("activity_logs")
+}
+
+// Swarm and Agent Models
+model Swarm {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  status      String   @default("idle") // idle, active, busy, error
+  agentCount  Int      @default(0) @map("agent_count")
+  sharedMemory Json    @default("{}") @map("shared_memory")
+  owner       String
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  agents Agent[]
+  tasks  Task[]
+
+  @@map("swarms")
+}
+
+model Agent {
+  id               String   @id @default(cuid())
+  name             String
+  type             String   @default("worker") // coordinator, worker, specialist
+  role             String   @default("general")
+  capabilities     String[] // Array of capability strings
+  status           String   @default("idle") // idle, busy, error
+  swarmId          String?  @map("swarm_id")
+  tasksCompleted   Int      @default(0) @map("tasks_completed")
+  averageResponseTime Int   @default(0) @map("average_response_time")
+  memory           Json     @default("[]")
+  context          Json     @default("{}")
+  currentTask      String?  @map("current_task")
+  createdAt        DateTime @default(now()) @map("created_at")
+  lastActive       DateTime @default(now()) @map("last_active")
+
+  // Relations
+  swarm Swarm? @relation(fields: [swarmId], references: [id], onDelete: SetNull)
+  taskAgents TaskAgent[]
+
+  @@map("agents")
+}
+
+model Task {
+  id              String   @id @default(cuid())
+  type            String   // code_generation, research, analysis, etc.
+  description     String
+  status          String   @default("pending") // pending, assigned, running, completed, failed
+  priority        Int      @default(5)
+  swarmId         String?  @map("swarm_id")
+  assignedAgents  String[] @map("assigned_agents") // Array of agent IDs
+  dependencies    String[] @default([]) // Array of task IDs
+  result          Json?
+  progress        Int      @default(0)
+  context         Json     @default("{}")
+  deadline        DateTime?
+  createdAt       DateTime @default(now()) @map("created_at")
+  assignedAt      DateTime? @map("assigned_at")
+  completedAt     DateTime? @map("completed_at")
+  failedAt        DateTime? @map("failed_at")
+
+  // Relations
+  swarm Swarm? @relation(fields: [swarmId], references: [id], onDelete: SetNull)
+  taskAgents TaskAgent[]
+
+  @@map("tasks")
+}
+
+// Join table for many-to-many relationship between tasks and agents
+model TaskAgent {
+  taskId  String @map("task_id")
+  agentId String @map("agent_id")
+
+  // Relations
+  task  Task  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  agent Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, agentId])
+  @@map("task_agents")
+}
+
+// Project Management Models
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  template    String   @default("blank")
+  githubRepo  String?  @map("github_repo")
+  starred     Boolean  @default(false)
+  settings    Json     @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  files       ProjectFile[]
+  deployments Deployment[]
+
+  @@map("projects")
+}
+
+model ProjectFile {
+  id        String   @id @default(cuid())
+  projectId String   @map("project_id")
+  name      String
+  path      String
+  content   String
+  language  String?
+  size      Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, path])
+  @@map("project_files")
+}
+
+model Deployment {
+  id        String   @id @default(cuid())
+  projectId String   @map("project_id")
+  status    String   @default("pending") // pending, building, deployed, failed
+  url       String?
+  logs      String?
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+  deployedAt DateTime? @map("deployed_at")
+
+  // Relations
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("deployments")
+}
+
+// Code Execution Models
+model CodeExecution {
+  id          String   @id @default(cuid())
+  sessionId   String   @map("session_id")
+  code        String
+  language    String
+  output      String?
+  error       String?
+  exitCode    Int?     @map("exit_code")
+  executionTime Int    @map("execution_time") // in milliseconds
+  environment Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("code_executions")
+}
+
+// Event and Analytics Models
+model SwarmEvent {
+  id        String   @id @default(cuid())
+  swarmId   String?  @map("swarm_id")
+  type      String   // task:assigned, agent:message, swarm:broadcast, etc.
+  data      Json
+  timestamp DateTime @default(now())
+
+  @@map("swarm_events")
+}
+
+model ApiUsage {
+  id        String   @id @default(cuid())
+  endpoint  String
+  method    String
+  userId    String?  @map("user_id")
+  duration  Int      // in milliseconds
+  status    Int      // HTTP status code
+  timestamp DateTime @default(now())
+
+  @@map("api_usage")
+}
